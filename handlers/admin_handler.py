@@ -44,9 +44,13 @@ async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Create caption for the post
         caption = (
-            f"Food Combo by: {submission.nickname}\n"
-            f"Number of People: {submission.people_count}\n"
-            f"Delivery Source: {submission.delivery_source}"
+            "🍽️ <b>Food Combo Submission</b> 🚀\n\n"
+            f"👤 <b>Nickname:</b> {submission.nickname}\n"
+            f"📍 <b>Delivery From:</b> {submission.delivery_source}\n"
+            f"👥 <b>Serves:</b> {submission.people_count}\n"
+            f"🔥 <b>Why It’s a Great Deal:</b> { 'No description provided'}\n\n"
+            "📸 <b>Check out my food combo!</b> 😍\n\n"
+            "<b>Send your combo from @wwoffers_bot</b>"
         )
 
         # Prepare media group with all images
@@ -56,7 +60,8 @@ async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if food_images:
             media_group.append(InputMediaPhoto(
                 media=food_images[0].file_id,
-                caption=caption
+                caption=caption,
+                parse_mode="HTML"
             ))
 
             # Add remaining food images without caption
@@ -89,7 +94,13 @@ async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Error notifying user {submitter_id}: {e}")
 
-        await query.message.reply_text(f"Submission {submission_id} approved and published.")
+        # Update the original message with confirmation
+        new_text = f"✅ Submission {submission_id} approved and published to the channel.\n\n"
+        new_text += f"Nickname: {submission.nickname}\n"
+        new_text += f"People: {submission.people_count}\n"
+        new_text += f"Source: {submission.delivery_source}"
+
+        await query.message.edit_text(new_text)
 
     elif action == "reject":
         # Update status in database
@@ -105,11 +116,15 @@ async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Error notifying user {submitter_id}: {e}")
 
-        await query.message.reply_text(f"Submission {submission_id} rejected.")
+        # Update the original message with confirmation
+        new_text = f"❌ Submission {submission_id} rejected.\n\n"
+        new_text += f"Nickname: {submission.nickname}\n"
+        new_text += f"People: {submission.people_count}\n"
+        new_text += f"Source: {submission.delivery_source}"
+
+        await query.message.edit_text(new_text)
 
     session.close()
-
-
 async def delete_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin command to delete a published post"""
     user_id = update.effective_user.id

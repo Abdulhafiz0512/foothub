@@ -4,7 +4,7 @@ from .start_handler import start, change_nickname, cancel
 from .submission_handler import (
     get_nickname, get_image_count, upload_images, upload_check,
     get_people_count, get_delivery_source, confirm_submission,
-    handle_resubmission
+   submit_command
 )
 from .admin_handler import admin_action, delete_post, list_pending
 from .general_handler import help_command
@@ -21,7 +21,9 @@ def setup_handlers(application):
         entry_points=[
             CommandHandler('start', start),
             CommandHandler('new', start),
-            CommandHandler('nickname', change_nickname)
+            CommandHandler('nickname', change_nickname),
+            CommandHandler("submit", submit_command),
+            CommandHandler('help', help_command)
         ],
         states={
             NICKNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_nickname)],
@@ -40,7 +42,5 @@ def setup_handlers(application):
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler('help', help_command))
     application.add_handler(CallbackQueryHandler(admin_action, pattern=r'^(approve|reject)_'))
-    application.add_handler(
-        CallbackQueryHandler(handle_resubmission, pattern=r'^(submit_another|no_more_submissions)$'))
     application.add_handler(CommandHandler('delete', delete_post))
     application.add_handler(CommandHandler('pending', list_pending))
