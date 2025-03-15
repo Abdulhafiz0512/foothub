@@ -1,5 +1,8 @@
 import sqlalchemy as db
 from datetime import datetime
+
+from sqlalchemy import func
+
 from database import Base
 
 

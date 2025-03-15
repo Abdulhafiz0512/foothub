@@ -6,7 +6,7 @@ from .submission_handler import (
     get_people_count, get_delivery_source, confirm_submission,
    submit_command
 )
-from .admin_handler import admin_action, delete_post, list_pending
+from .admin_handler import admin_action, delete_post, list_pending, add_admin
 from .general_handler import help_command
 
 from config import START, NICKNAME, IMAGE_COUNT, UPLOAD_IMAGES, UPLOAD_CHECK, PEOPLE_COUNT, DELIVERY_SOURCE, CONFIRM
@@ -42,5 +42,6 @@ def setup_handlers(application):
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler('help', help_command))
     application.add_handler(CallbackQueryHandler(admin_action, pattern=r'^(approve|reject)_'))
+    application.add_handler(CommandHandler("addadmin", add_admin))
     application.add_handler(CommandHandler('delete', delete_post))
     application.add_handler(CommandHandler('pending', list_pending))

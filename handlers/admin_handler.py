@@ -1,11 +1,13 @@
+from dotenv import set_key, load_dotenv
 from telegram import Update, InputMediaPhoto, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from database import Session
 from models import Submission, Image
+import os
 from utils import is_admin
 from config import CHANNEL_ID, logger
 
-
+load_dotenv()
 async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle admin approval/rejection of submissions"""
     query = update.callback_query
@@ -165,6 +167,68 @@ async def delete_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.close()
 
 
+async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command to add a new admin by username"""
+    user_id = update.effective_user.id
+
+    # Check if the user executing this command is an admin
+    if not await is_admin(user_id):
+        await update.message.reply_text("This command is only available to admins.")
+        return
+
+    # Check if command has the correct arguments
+    if not context.args or len(context.args) != 1:
+        await update.message.reply_text("Usage: /addadmin [username]")
+        return
+
+    username = context.args[0]
+    # Remove @ symbol if included
+    if username.startswith('@'):
+        username = username[1:]
+
+    # Try to get user info from username
+    try:
+        # Get user info from Telegram
+        user = await context.bot.get_chat(f"@{username}")
+        new_admin_id = user.id
+
+        # Get current admin IDs from .env
+        admin_ids_str = os.getenv('ADMIN_IDS', '')
+        admin_ids = [int(id.strip()) for id in admin_ids_str.split(',') if id.strip()]
+
+        # Check if user is already an admin
+        if new_admin_id in admin_ids:
+            await update.message.reply_text(f"User @{username} is already an admin.")
+            return
+
+        # Add new admin ID to the list
+        admin_ids.append(new_admin_id)
+
+        # Update .env file with the new admin list
+        new_admin_ids_str = ','.join(str(id) for id in admin_ids)
+        dotenv_path = os.path.join(os.getcwd(), '.env')
+        set_key(dotenv_path, 'ADMIN_IDS', new_admin_ids_str)
+
+        # Reload environment variables
+        load_dotenv()
+
+        await update.message.reply_text(
+            f"✅ Successfully added @{username} as an admin.\nAdmin ID {new_admin_id} added to .env file.")
+
+        # Notify the new admin
+        try:
+            await context.bot.send_message(
+                chat_id=new_admin_id,
+                text="You have been added as an admin to the Food Combo submissions bot."
+            )
+        except Exception as e:
+            logger.error(f"Error notifying new admin {new_admin_id}: {e}")
+            await update.message.reply_text(f"Admin added, but couldn't notify them: {e}")
+
+    except Exception as e:
+        await update.message.reply_text(
+            f"Error adding admin: {e}\nMake sure the username is correct and the user has interacted with the bot at least once.")
+        logger.error(f"Error adding admin with username {username}: {e}")
 async def list_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin command to list pending submissions"""
     user_id = update.effective_user.id
