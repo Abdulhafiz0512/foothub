@@ -222,8 +222,8 @@ async def verify_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Send confirmation to the admin who requested this
         keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("Confirm", callback_data=f"confirm_admin_{user_id}_{username}"),
-                InlineKeyboardButton("Cancel", callback_data=f"cancel_admin_{user_id}_{username}")
+                InlineKeyboardButton("Confirm", callback_data=f"confirm_{user_id}_{username}"),
+                InlineKeyboardButton("Cancel", callback_data=f"cancel_{user_id}_{username}")
             ]
         ])
 
@@ -242,7 +242,6 @@ async def verify_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("There is no pending admin verification request for your username.")
 
-
 async def admin_confirmation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle admin confirmation callbacks"""
     query = update.callback_query
@@ -255,8 +254,16 @@ async def admin_confirmation_callback(update: Update, context: ContextTypes.DEFA
         await query.edit_message_text("You are not authorized to perform this action.")
         return
 
-    action, user_id_to_add, username = query.data.split('_')[1:]
-    user_id_to_add = int(user_id_to_add)
+    # Parse the callback data more safely
+    parts = query.data.split('_')
+    action = parts[0]  # confirm or cancel
+
+    if len(parts) < 3:
+        await query.edit_message_text("Invalid callback data format.")
+        return
+
+    user_id_to_add = int(parts[2])
+    username = parts[3] if len(parts) > 3 else "Unknown"
 
     if action == "confirm":
         # Get current admin IDs from .env
@@ -309,7 +316,6 @@ async def admin_confirmation_callback(update: Update, context: ContextTypes.DEFA
         # Clean up pending addition
         if username.lower() in pending_admin_additions:
             del pending_admin_additions[username.lower()]
-
 async def list_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin command to list pending submissions"""
     user_id = update.effective_user.id

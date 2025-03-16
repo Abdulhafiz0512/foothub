@@ -44,6 +44,6 @@ def setup_handlers(application):
     application.add_handler(CallbackQueryHandler(admin_action, pattern=r'^(approve|reject)_'))
     application.add_handler(CommandHandler("addadmin", add_admin))
     application.add_handler(CommandHandler("verifyadmin", verify_admin))
-    application.add_handler(CallbackQueryHandler(admin_confirmation_callback, pattern=r"^(confirm|cancel)_admin_"))
+    application.add_handler(CallbackQueryHandler(admin_confirmation_callback, pattern=r"^(confirm|cancel)_"))
     application.add_handler(CommandHandler('delete', delete_post))
     application.add_handler(CommandHandler('pending', list_pending))
