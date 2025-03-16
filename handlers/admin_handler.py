@@ -167,6 +167,9 @@ async def delete_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.close()
 
 
+pending_admin_additions = {}
+
+
 async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin command to add a new admin by username"""
     user_id = update.effective_user.id
@@ -186,23 +189,87 @@ async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if username.startswith('@'):
         username = username[1:]
 
-    # Try to get user info from username
-    try:
-        # Get user info from Telegram
-        user = await context.bot.get_chat(f"@{username}")
-        new_admin_id = user.id
+    # Send instructions to the admin
+    await update.message.reply_text(
+        f"To add @{username} as an admin, ask them to:\n\n"
+        f"1. Start the bot if they haven't already\n"
+        f"2. Send /verifyadmin to the bot\n\n"
+        f"Once they do this, you will receive a notification to confirm"
+    )
 
+    # Store this pending admin request
+    pending_admin_additions[username.lower()] = {
+        'requester_id': user_id,
+        'status': 'pending'
+    }
+
+
+async def verify_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Command for users to verify their identity for admin addition"""
+    user_id = update.effective_user.id
+    username = update.effective_user.username
+
+    if not username:
+        await update.message.reply_text("You need to have a username set in Telegram to become an admin.")
+        return
+
+    username = username.lower()
+
+    # Check if this user has a pending admin addition
+    if username in pending_admin_additions and pending_admin_additions[username]['status'] == 'pending':
+        requester_id = pending_admin_additions[username]['requester_id']
+
+        # Send confirmation to the admin who requested this
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("Confirm", callback_data=f"confirm_admin_{user_id}_{username}"),
+                InlineKeyboardButton("Cancel", callback_data=f"cancel_admin_{user_id}_{username}")
+            ]
+        ])
+
+        await context.bot.send_message(
+            chat_id=requester_id,
+            text=f"@{username} (ID: {user_id}) wants to be added as an admin. Confirm?",
+            reply_markup=keyboard
+        )
+
+        # Notify the user
+        await update.message.reply_text("Verification request sent to the admin. Please wait for confirmation.")
+
+        # Update status
+        pending_admin_additions[username]['status'] = 'verifying'
+        pending_admin_additions[username]['user_id'] = user_id
+    else:
+        await update.message.reply_text("There is no pending admin verification request for your username.")
+
+
+async def admin_confirmation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle admin confirmation callbacks"""
+    query = update.callback_query
+    await query.answer()
+
+    user_id = update.effective_user.id
+
+    # Check if the user is an admin
+    if not await is_admin(user_id):
+        await query.edit_message_text("You are not authorized to perform this action.")
+        return
+
+    action, user_id_to_add, username = query.data.split('_')[1:]
+    user_id_to_add = int(user_id_to_add)
+
+    if action == "confirm":
         # Get current admin IDs from .env
         admin_ids_str = os.getenv('ADMIN_IDS', '')
         admin_ids = [int(id.strip()) for id in admin_ids_str.split(',') if id.strip()]
 
         # Check if user is already an admin
-        if new_admin_id in admin_ids:
-            await update.message.reply_text(f"User @{username} is already an admin.")
+        if user_id_to_add in admin_ids:
+            await query.edit_message_text(f"User @{username} is already an admin.")
             return
 
         # Add new admin ID to the list
-        admin_ids.append(new_admin_id)
+        admin_ids.append(user_id_to_add)
 
         # Update .env file with the new admin list
         new_admin_ids_str = ','.join(str(id) for id in admin_ids)
@@ -212,23 +279,37 @@ async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Reload environment variables
         load_dotenv()
 
-        await update.message.reply_text(
-            f"✅ Successfully added @{username} as an admin.\nAdmin ID {new_admin_id} added to .env file.")
+        await query.edit_message_text(f"✅ Successfully added @{username} as an admin.")
 
         # Notify the new admin
         try:
             await context.bot.send_message(
-                chat_id=new_admin_id,
-                text="You have been added as an admin to the Food Combo submissions bot."
+                chat_id=user_id_to_add,
+                text="✅ You have been added as an admin to the Food Combo submissions bot."
             )
         except Exception as e:
-            logger.error(f"Error notifying new admin {new_admin_id}: {e}")
-            await update.message.reply_text(f"Admin added, but couldn't notify them: {e}")
+            logger.error(f"Error notifying new admin {user_id_to_add}: {e}")
 
-    except Exception as e:
-        await update.message.reply_text(
-            f"Error adding admin: {e}\nMake sure the username is correct and the user has interacted with the bot at least once.")
-        logger.error(f"Error adding admin with username {username}: {e}")
+        # Clean up pending addition
+        if username.lower() in pending_admin_additions:
+            del pending_admin_additions[username.lower()]
+
+    elif action == "cancel":
+        await query.edit_message_text(f"❌ Admin addition for @{username} has been cancelled.")
+
+        # Notify the user
+        try:
+            await context.bot.send_message(
+                chat_id=user_id_to_add,
+                text="Your admin request has been denied."
+            )
+        except Exception as e:
+            logger.error(f"Error notifying user {user_id_to_add}: {e}")
+
+        # Clean up pending addition
+        if username.lower() in pending_admin_additions:
+            del pending_admin_additions[username.lower()]
+
 async def list_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin command to list pending submissions"""
     user_id = update.effective_user.id
